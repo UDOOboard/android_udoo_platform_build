@@ -27,6 +27,7 @@ import sys
 import commands
 import shutil
 import tempfile
+import time
 
 FIXED_SALT = "aee087a5be3b982978c923f566a94613496b417f2af592639bc80d141e34dfe7"
 
@@ -255,6 +256,17 @@ def BuildImage(in_dir, prop_dict, out_file,
   elif fs_type.startswith("f2fs"):
     build_command = ["mkf2fsuserimg.sh"]
     build_command.extend([out_file, prop_dict["partition_size"]])
+  elif fs_type.startswith("ubifs"):
+    # add ubifs image generate support.
+    build_command = ["mkfs_ubifs", "-d"]
+    build_command.append(in_dir)
+    build_command.append("-o")
+    build_command.append(out_file)
+    build_command.append("-s")
+    if "selinux_fc" in prop_dict:
+      build_command.append(prop_dict["selinux_fc"])
+    if prop_dict.get("mkfsubifs_flags", None):
+      build_command.extend(prop_dict["mkfsubifs_flags"].split())
   else:
     build_command = ["mkyaffs2image", "-f"]
     if prop_dict.get("mkyaffs2_extra_flags", None):
@@ -312,11 +324,12 @@ def ImagePropFromGlobalDict(glob_dict, mount_point):
       "skip_fsck",
       "verity",
       "verity_key",
-      "verity_signer_cmd"
+      "verity_signer_cmd",
+      "mkfsubifs_flags"
       )
   for p in common_props:
     copy_prop(p, p)
-
+  copy_prop("mkfsubifs_flags", "mkfsubifs_flags")
   d["mount_point"] = mount_point
   if mount_point == "system":
     copy_prop("fs_type", "fs_type")
@@ -354,6 +367,7 @@ def LoadGlobalDict(filename):
       continue
     k, v = line.split("=", 1)
     d[k] = v
+
   f.close()
   return d
 
@@ -370,7 +384,7 @@ def main(argv):
   glob_dict = LoadGlobalDict(glob_dict_file)
   image_filename = os.path.basename(out_file)
   mount_point = ""
-  if image_filename == "system.img":
+  if image_filename == "system.img" or image_filename == "system_sparse.img" :
     mount_point = "system"
   elif image_filename == "userdata.img":
     mount_point = "data"

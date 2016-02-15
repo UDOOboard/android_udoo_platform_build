@@ -100,7 +100,7 @@ endif
 ifeq ($(DEFAULT_SYSTEM_DEV_CERTIFICATE),build/target/product/security/testkey)
 BUILD_KEYS := test-keys
 else
-BUILD_KEYS := dev-keys
+BUILD_KEYS := release-keys
 endif
 BUILD_VERSION_TAGS += $(BUILD_KEYS)
 BUILD_VERSION_TAGS := $(subst $(space),$(comma),$(sort $(BUILD_VERSION_TAGS)))
@@ -214,6 +214,8 @@ endif
 			BUILD_DISPLAY_ID="$(BUILD_DISPLAY_ID)" \
 			BUILD_NUMBER="$(BUILD_NUMBER)" \
 			PLATFORM_VERSION="$(PLATFORM_VERSION)" \
+			PLATFORM_SECURITY_PATCH="$(PLATFORM_SECURITY_PATCH)" \
+			PLATFORM_BASE_OS="$(PLATFORM_BASE_OS)" \
 			PLATFORM_SDK_VERSION="$(PLATFORM_SDK_VERSION)" \
 			PLATFORM_VERSION_CODENAME="$(PLATFORM_VERSION_CODENAME)" \
 			PLATFORM_VERSION_ALL_CODENAMES="$(PLATFORM_VERSION_ALL_CODENAMES)" \
@@ -510,9 +512,15 @@ else ifeq (true,$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SUPPORTS_VERITY)) # TARGE
 
 $(INSTALLED_BOOTIMAGE_TARGET): $(MKBOOTIMG) $(INTERNAL_BOOTIMAGE_FILES) $(BOOT_SIGNER)
 	$(call pretty,"Target boot image: $@")
-	$(hide) $(MKBOOTIMG) $(INTERNAL_BOOTIMAGE_ARGS) $(BOARD_MKBOOTIMG_ARGS) --output $@
-	$(BOOT_SIGNER) /boot $@ $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_VERITY_SIGNING_KEY).pk8 $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_VERITY_SIGNING_KEY).x509.pem $@
-	$(hide) $(call assert-max-image-size,$@,$(BOARD_BOOTIMAGE_PARTITION_SIZE))
+	for dtsplat in $(TARGET_BOARD_DTS_CONFIG); do \
+                DTS_PLATFORM=`echo $$dtsplat | cut -d':' -f1`; \
+                DTS_BOARD=`echo $$dtsplat | cut -d':' -f2`; \
+                BOOT_IMAGE_BOARD=$(patsubst %.img,%-$$DTS_PLATFORM.img,$@); \
+                $(MKBOOTIMG) $(INTERNAL_BOOTIMAGE_ARGS) --second $(PRODUCT_OUT)/$$DTS_BOARD $(BOARD_MKBOOTIMG_ARGS) --output $@; \
+        $(BOOT_SIGNER) /boot $@ $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_VERITY_SIGNING_KEY).pk8 $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_VERITY_SIGNING_KEY).x509.pem $@; \
+                $(call assert-max-image-size,$@,$(BOARD_BOOTIMAGE_PARTITION_SIZE)); \
+                cp -f $@ $$BOOT_IMAGE_BOARD; \
+        done
 
 .PHONY: bootimage-nodeps
 bootimage-nodeps: $(MKBOOTIMG) $(BOOT_SIGNER)
@@ -525,8 +533,14 @@ else # PRODUCT_SUPPORTS_VERITY != true
 
 $(INSTALLED_BOOTIMAGE_TARGET): $(MKBOOTIMG) $(INTERNAL_BOOTIMAGE_FILES)
 	$(call pretty,"Target boot image: $@")
-	$(hide) $(MKBOOTIMG) $(INTERNAL_BOOTIMAGE_ARGS) $(BOARD_MKBOOTIMG_ARGS) --output $@
-	$(hide) $(call assert-max-image-size,$@,$(BOARD_BOOTIMAGE_PARTITION_SIZE))
+	for dtsplat in $(TARGET_BOARD_DTS_CONFIG); do \
+		DTS_PLATFORM=`echo $$dtsplat | cut -d':' -f1`; \
+		DTS_BOARD=`echo $$dtsplat | cut -d':' -f2`; \
+		BOOT_IMAGE_BOARD=$(patsubst %.img,%-$$DTS_PLATFORM.img,$@); \
+		$(MKBOOTIMG) $(INTERNAL_BOOTIMAGE_ARGS) --second $(PRODUCT_OUT)/$$DTS_BOARD $(BOARD_MKBOOTIMG_ARGS) --output $@; \
+	    $(call assert-max-image-size,$@,$(BOARD_BOOTIMAGE_PARTITION_SIZE)); \
+		cp -f $@ $$BOOT_IMAGE_BOARD; \
+	done
 
 .PHONY: bootimage-nodeps
 bootimage-nodeps: $(MKBOOTIMG)
@@ -676,6 +690,11 @@ else
 ifeq ($(TARGET_USERIMAGES_USE_EXT4),true)
 INTERNAL_USERIMAGES_USE_EXT := true
 INTERNAL_USERIMAGES_EXT_VARIANT := ext4
+else
+ifeq ($(TARGET_USERIMAGES_USE_UBIFS),true)
+# FIXME: this borrow ext's var to generate it.
+INTERNAL_USERIMAGES_EXT_VARIANT := ubifs
+endif
 endif
 endif
 endif
@@ -698,9 +717,12 @@ ifeq ($(TARGET_USERIMAGES_USE_F2FS),true)
 INTERNAL_USERIMAGES_DEPS += $(MKF2FSUSERIMG) $(MAKE_F2FS)
 endif
 else
+ifeq ($(TARGET_USERIMAGES_USE_UBIFS),true)
+INTERNAL_USERIMAGES_DEPS := $(MKUBIFS)
+else
 INTERNAL_USERIMAGES_DEPS := $(MKYAFFS2)
 endif
-
+endif
 INTERNAL_USERIMAGES_BINARY_PATHS := $(sort $(dir $(INTERNAL_USERIMAGES_DEPS)))
 
 ifeq (true,$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SUPPORTS_VERITY))
@@ -734,6 +756,7 @@ $(if $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SUPPORTS_VERITY),$(hide) echo "verit
 $(if $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SYSTEM_VERITY_PARTITION),$(hide) echo "system_verity_block_device=$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SYSTEM_VERITY_PARTITION)" >> $(1))
 $(if $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_VENDOR_VERITY_PARTITION),$(hide) echo "vendor_verity_block_device=$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_VENDOR_VERITY_PARTITION)" >> $(1))
 $(if $(2),$(hide) $(foreach kv,$(2),echo "$(kv)" >> $(1);))
+$(if $(TARGET_MKUBIFS_ARGS),$(hide) echo "mkfsubifs_flags=$(TARGET_MKUBIFS_ARGS)" >> $(1))
 endef
 
 # -----------------------------------------------------------------
@@ -782,10 +805,19 @@ endif
 recovery_resources_private := $(strip $(wildcard $(TARGET_DEVICE_DIR)/recovery/res))
 recovery_resource_deps := $(shell find $(recovery_resources_common) \
   $(recovery_resources_private) -type f)
+
+ifeq ($(TARGET_USERIMAGES_USE_UBIFS),true)
+ifdef TARGET_RECOVERY_FSTAB
+recovery_fstab := $(TARGET_RECOVERY_FSTAB)
+else
+recovery_fstab := $(strip $(wildcard $(TARGET_DEVICE_DIR)/recovery_nand.fstab))
+endif
+else
 ifdef TARGET_RECOVERY_FSTAB
 recovery_fstab := $(TARGET_RECOVERY_FSTAB)
 else
 recovery_fstab := $(strip $(wildcard $(TARGET_DEVICE_DIR)/recovery.fstab))
+endif
 endif
 # Named '.dat' so we don't attempt to use imgdiff for patching it.
 RECOVERY_RESOURCE_ZIP := $(TARGET_OUT)/etc/recovery-resource.dat
@@ -867,11 +899,17 @@ $(INSTALLED_RECOVERYIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) \
 	$(hide) cat $(INSTALLED_DEFAULT_PROP_TARGET) $(recovery_build_prop) \
 	        > $(TARGET_RECOVERY_ROOT_OUT)/default.prop
 	$(hide) $(MKBOOTFS) $(TARGET_RECOVERY_ROOT_OUT) | $(MINIGZIP) > $(recovery_ramdisk)
-	$(hide) $(MKBOOTIMG) $(INTERNAL_RECOVERYIMAGE_ARGS) $(BOARD_MKBOOTIMG_ARGS) --output $@
-ifeq (true,$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SUPPORTS_VERITY))
-	$(BOOT_SIGNER) /recovery $@ $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_VERITY_SIGNING_KEY).pk8 $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_VERITY_SIGNING_KEY).x509.pem $@
-endif
-	$(hide) $(call assert-max-image-size,$@,$(BOARD_RECOVERYIMAGE_PARTITION_SIZE))
+	for dtsplat in $(TARGET_BOARD_DTS_CONFIG); do \
+		DTS_PLATFORM=`echo $$dtsplat | cut -d':' -f1`; \
+		DTS_BOARD=`echo $$dtsplat | cut -d':' -f2`; \
+		RECOVERY_IMAGE_BOARD=$(patsubst %.img,%-$$DTS_PLATFORM.img,$@); \
+        $(MKBOOTIMG) $(INTERNAL_RECOVERYIMAGE_ARGS) --second $(PRODUCT_OUT)/$$DTS_BOARD $(BOARD_MKBOOTIMG_ARGS) --output $@; \
+        if [ $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SUPPORTS_VERITY) = true ]; then \
+        $(BOOT_SIGNER) /recovery $@ $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_VERITY_SIGNING_KEY).pk8 $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_VERITY_SIGNING_KEY).x509.pem $@; \
+        fi;\
+        $(call assert-max-image-size,$@,$(BOARD_RECOVERYIMAGE_PARTITION_SIZE)); \
+        cp -f $@ $$RECOVERY_IMAGE_BOARD; \
+	done
 	@echo ----- Made recovery image: $@ --------
 
 $(RECOVERY_RESOURCE_ZIP): $(INSTALLED_RECOVERYIMAGE_TARGET)
@@ -881,6 +919,131 @@ $(RECOVERY_RESOURCE_ZIP): $(INSTALLED_RECOVERYIMAGE_TARGET)
 else
 INSTALLED_RECOVERYIMAGE_TARGET :=
 RECOVERY_RESOURCE_ZIP :=
+endif
+
+.PHONY: bootloader
+ifneq ($(strip $(TARGET_BOOTLOADER_CONFIG)),)
+BOOTLOADER_CROSS_TOOLCHAIN := `pwd`/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin/arm-eabi-
+BOOTLOADER_ENV := ARCH=arm CROSS_COMPILE=$(BOOTLOADER_CROSS_TOOLCHAIN)
+HOST_PROCESSOR := $(shell cat /proc/cpuinfo | grep processor | wc -l)
+TARGET_BOOTLOADER_IMAGE := $(PRODUCT_OUT)/u-boot.imx
+
+BOOTLOADER_PATH := bootable/bootloader/uboot-imx/
+BOOTLOADER_CONFIG_FILE := $(BOOTLOADER_PATH)/include/config.h
+
+bootloader: $(TARGET_BOOTLOADER_IMAGE)
+
+$(TARGET_BOOTLOADER_IMAGE):
+	for ubootplat in $(TARGET_BOOTLOADER_CONFIG); do \
+		UBOOT_PLATFORM=`echo $$ubootplat | cut -d':' -f1`; \
+		UBOOT_CONFIG=`echo $$ubootplat | cut -d':' -f2`; \
+		UBOOT_DIR="bootable/bootloader/$(TARGET_UBOOT_VERSION)"; \
+        echo $(UBOOT_PLATFORM); \
+        echo $(UBOOT_CONFIG); \
+	   if [ "$(TARGET_UBOOT_VERSION)" = "uboot-imx-2015_neo" ]; then \
+		$(MAKE) -C $$UBOOT_DIR distclean $(BOOTLOADER_ENV); \
+		$(MAKE) -C $$UBOOT_DIR $$UBOOT_CONFIG $(BOOTLOADER_ENV); \
+		$(MAKE) -C $$UBOOT_DIR $(BOOTLOADER_ENV); \
+		dd if=$$UBOOT_DIR/SPL of=$$UBOOT_DIR/u-boot.imx bs=1K seek=0 conv=notrunc; \
+		dd if=$$UBOOT_DIR/u-boot.img of=$$UBOOT_DIR/u-boot.imx bs=1K seek=68; \
+		install -D $$UBOOT_DIR/u-boot.imx $(PRODUCT_OUT)/u-boot-$$UBOOT_PLATFORM.imx; \
+	   else \
+		$(MAKE) -C bootable/bootloader/$(TARGET_UBOOT_VERSION)/ distclean $(BOOTLOADER_ENV); \
+		$(MAKE) -C bootable/bootloader/$(TARGET_UBOOT_VERSION)/ $$UBOOT_CONFIG $(BOOTLOADER_ENV); \
+		$(MAKE) -C bootable/bootloader/$(TARGET_UBOOT_VERSION)/ $(BOOTLOADER_ENV); \
+		install -D bootable/bootloader/$(TARGET_UBOOT_VERSION)/u-boot.imx $(PRODUCT_OUT)/u-boot-$$UBOOT_PLATFORM.imx; \
+		install -D bootable/bootloader/$(TARGET_UBOOT_VERSION)/u-boot.imx $@; \
+	   fi \
+	done
+else
+bootloader:
+endif
+
+.PHONY: kernelimage
+ifneq ($(strip $(TARGET_NO_KERNEL)),true)
+KERNEL_CROSS_TOOLCHAIN := `pwd`/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin/arm-eabi-
+HOST_PROCESSOR := $(shell cat /proc/cpuinfo | grep processor | wc -l)
+INSTALLED_KERNEL_TARGET := $(PRODUCT_OUT)/kernel
+TARGET_PREBUILT_KERNEL := $(PRODUCT_OUT)/kernel
+KERNEL_CONFIGURE := kernel_imx/.config
+KERNEL_OUT := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ
+TARGET_KERNEL_CONFIGURE := $(KERNEL_OUT)/.config
+KERNEL_ZIMAGE    := $(KERNEL_OUT)/arch/arm/boot/zImage
+KERNEL_ENV := ARCH=arm CROSS_COMPILE=$(KERNEL_CROSS_TOOLCHAIN) LOADADDR=$(LOAD_KERNEL_ENTRY) O=`pwd`/$(KERNEL_OUT) 
+
+
+.PHONY: $(TARGET_PREBUILT_KERNEL)
+kernelimage: $(TARGET_PREBUILT_KERNEL)
+
+$(KERNEL_CONFIGURE): kernel_imx/arch/arm/configs/$(TARGET_KERNEL_DEFCONF)
+
+$(TARGET_KERNEL_CONFIGURE): kernel_imx/arch/arm/configs/$(TARGET_KERNEL_DEFCONF) $(KERNEL_CONFIGURE)
+	mkdir -p $(KERNEL_OUT)
+	rm -f $(PRODUCT_OUT)/kernel
+	$(MAKE) -C kernel_imx $(TARGET_KERNEL_DEFCONF) $(KERNEL_ENV)
+	$(MAKE) -C kernel_imx -j$(HOST_PROCESSOR) prepare $(KERNEL_ENV)
+	#install -D $(KERNEL_CONFIGURE) $(TARGET_KERNEL_CONFIGURE)
+
+$(TARGET_PREBUILT_KERNEL): $(TARGET_KERNEL_CONFIGURE)
+	$(MAKE) -C kernel_imx -j$(HOST_PROCESSOR) uImage $(KERNEL_ENV)
+	for dtsplat in $(TARGET_BOARD_DTS_CONFIG); do \
+		DTS_PLATFORM=`echo $$dtsplat | cut -d':' -f1`; \
+		DTS_BOARD=`echo $$dtsplat | cut -d':' -f2`; \
+		rm -f $(KERNEL_OUT)/arch/arm/boot/dts/$$DTS_BOARD $(PRODUCT_OUT)/$$DTS_BOARD; \
+	done
+	$(MAKE) -C kernel_imx dtbs $(KERNEL_ENV)
+	install -D $(KERNEL_ZIMAGE)  $(PRODUCT_OUT)/kernel
+	for dtsplat in $(TARGET_BOARD_DTS_CONFIG); do \
+		DTS_PLATFORM=`echo $$dtsplat | cut -d':' -f1`; \
+		DTS_BOARD=`echo $$dtsplat | cut -d':' -f2`; \
+		install -D $(KERNEL_OUT)/arch/arm/boot/dts/$$DTS_BOARD $(PRODUCT_OUT)/$$DTS_BOARD; \
+	done
+else
+kernelimage:
+endif
+
+.PHONY: kernelmodules
+
+kernel_modules_src_list :=
+kernel_modules_dist_list :=
+
+$(foreach cf,$(TARGET_KERNEL_MODULES),							\
+$(eval _src := $(call word-colon,1,$(cf)))						\
+$(eval _dest := $(call word-colon,2,$(cf)))						\
+$(eval kernel_modules_src_list += $(_src))						\
+$(eval kernel_modules_dest_list += $(call append-path,$(PRODUCT_OUT),$(_dest))))
+
+ifneq ($(strip $(kernel_modules_src_list)),)
+
+kernelmodules: $(TARGET_PREBUILT_KERNEL) | $(ACP)
+	$(MAKE) -C kernel_imx modules $(KERNEL_ENV)
+	$(hide) $(foreach cf, $(TARGET_KERNEL_MODULES),				\
+	$(eval _src := $(call word-colon,1,$(cf)))				\
+	$(eval _dest := $(call word-colon,2,$(cf)))				\
+	$(eval _full_dest := $(call append-path,$(PRODUCT_OUT),$(_dest)))	\
+	$(eval _dest_dir := $(call dir, $(_full_dest))) 			\
+	mkdir -p $(_dest_dir); 							\
+	$(ACP) $(PRODUCT_OUT)/obj/KERNEL_OBJ/$(_src) $(_full_dest);		\
+	)
+	@echo "install kernel modules: $(kernel_modules_src_list)"
+else
+kernelmodules:
+endif
+# ----------------------------------------------------------------
+# support ubifs rules:
+.PHONY: ubiimagesgenerate
+ifeq ($(TARGET_USERIMAGES_USE_UBIFS),true)
+UBI_RAW_IMAGE := $(PRODUCT_OUT)/android_root.img
+
+.PHONY: $(UBI_RAW_IMAGE)
+
+ubiimagesgenerate: $(UBI_RAW_IMAGE)
+
+$(UBI_RAW_IMAGE) : $(INSTALLED_USERDATAIMAGE_TARGET) systemimage
+	$(call pretty,"Generating UBI raw image:" "$(UBI_RAW_IMAGE)" "$(UBI_RAW_RECO_IMAGE)")
+	$(MKUBIRAW) -o $(UBI_RAW_IMAGE) $(TARGET_UBIRAW_ARGS)
+else
+ubiimagesgenerate:
 endif
 
 .PHONY: recoveryimage
@@ -1359,6 +1522,9 @@ endif
 ifdef BOARD_KERNEL_PAGESIZE
 	$(hide) echo "$(BOARD_KERNEL_PAGESIZE)" > $(zip_root)/RECOVERY/pagesize
 endif
+ifdef BOARD_KERNEL_DTS
+	$(hide) echo "$(BOARD_KERNEL_DTS)" > $(zip_root)/RECOVERY/dtb
+endif
 	@# Components of the boot image
 	$(hide) mkdir -p $(zip_root)/BOOT
 	$(hide) $(call package_files-copy-root, \
@@ -1379,8 +1545,16 @@ endif
 ifdef BOARD_KERNEL_PAGESIZE
 	$(hide) echo "$(BOARD_KERNEL_PAGESIZE)" > $(zip_root)/BOOT/pagesize
 endif
+ifdef BOARD_KERNEL_DTS
+	$(hide) echo "$(BOARD_KERNEL_DTS)" > $(zip_root)/BOOT/dtb
+endif
+ifdef DTS_PLATFORM
+	$(hide) mkdir -p $(zip_root)/RADIO;	
+	$(hide) $(ACP) $(PRODUCT_OUT)/u-boot-$(DTS_PLATFORM).imx $(zip_root)/RADIO/bootloader.img
+endif
 	$(hide) $(foreach t,$(INSTALLED_RADIOIMAGE_TARGET),\
 	            mkdir -p $(zip_root)/RADIO; \
+		    echo "INSTALLED_RADIOIMAGE_TARGET *******";\
 	            $(ACP) $(t) $(zip_root)/RADIO/$(notdir $(t));)
 	@# Contents of the system image
 	$(hide) $(call package_files-copy-root, \
@@ -1468,6 +1642,11 @@ ifeq ($(TARGET_BUILD_TYPE),debug)
 endif
 name := $(name)-ota-$(FILE_NAME_TAG)
 
+block_file := 
+ifneq ($(TARGET_USERIMAGES_USE_UBIFS),true)
+block_file := --block
+endif
+
 INTERNAL_OTA_PACKAGE_TARGET := $(PRODUCT_OUT)/$(name).zip
 
 $(INTERNAL_OTA_PACKAGE_TARGET): KEY_CERT_PAIR := $(DEFAULT_KEY_CERT_PAIR)
@@ -1476,14 +1655,26 @@ $(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) $(DISTTOOLS)
 	@echo "Package OTA: $@"
 	$(hide) MKBOOTIMG=$(MKBOOTIMG) \
 	   ./build/tools/releasetools/ota_from_target_files -v \
-	   --block \
+	   $(block_file)  \
 	   -p $(HOST_OUT) \
 	   -k $(KEY_CERT_PAIR) \
 	   $(if $(OEM_OTA_CONFIG), -o $(OEM_OTA_CONFIG)) \
 	   $(BUILT_TARGET_FILES_PACKAGE) $@
 
+otagenerate: $(INTERNAL_OTA_PACKAGE_TARGET)
+
 .PHONY: otapackage
-otapackage: $(INTERNAL_OTA_PACKAGE_TARGET)
+otapackage:
+	@echo "Package OTA Start...: $@"
+	for dtsplat in $(TARGET_BOARD_DTS_CONFIG); do \
+		export DTS_PLATFORM=`echo $$dtsplat | cut -d':' -f1`; \
+		DTS_BOARD=`echo $$dtsplat | cut -d':' -f2`; \
+		export BOARD_KERNEL_DTS="$(PRODUCT_OUT)/$$DTS_BOARD" ; \
+		make otagenerate; \
+		OTA_PACKAGE_BOARD=$(patsubst %.zip,%-$$DTS_PLATFORM.zip,$(INTERNAL_OTA_PACKAGE_TARGET)); \
+		cp -f $(INTERNAL_OTA_PACKAGE_TARGET) $$OTA_PACKAGE_BOARD; \
+	done
+
 
 endif    # recovery_fstab is defined
 endif    # TARGET_NO_KERNEL != true

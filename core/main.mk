@@ -895,14 +895,18 @@ endif
 
 # Build files and then package it into the rom formats
 .PHONY: droidcore
-droidcore: files \
+droidcore: kernelimage \
+	kernelmodules \
+	bootloader \
+	files \
 	systemimage \
 	$(INSTALLED_BOOTIMAGE_TARGET) \
 	$(INSTALLED_RECOVERYIMAGE_TARGET) \
 	$(INSTALLED_USERDATAIMAGE_TARGET) \
 	$(INSTALLED_CACHEIMAGE_TARGET) \
 	$(INSTALLED_VENDORIMAGE_TARGET) \
-	$(INSTALLED_FILES_FILE)
+	$(INSTALLED_FILES_FILE) \
+	ubiimagesgenerate
 
 # dist_files only for putting your library into the dist directory with a full build.
 .PHONY: dist_files
