@@ -940,20 +940,12 @@ $(TARGET_BOOTLOADER_IMAGE):
 		UBOOT_DIR="bootable/bootloader/$(TARGET_UBOOT_VERSION)"; \
         echo $(UBOOT_PLATFORM); \
         echo $(UBOOT_CONFIG); \
-	   if [ "$(TARGET_UBOOT_VERSION)" = "uboot-imx-2015_neo" ]; then \
 		$(MAKE) -C $$UBOOT_DIR distclean $(BOOTLOADER_ENV); \
 		$(MAKE) -C $$UBOOT_DIR $$UBOOT_CONFIG $(BOOTLOADER_ENV); \
 		$(MAKE) -C $$UBOOT_DIR $(BOOTLOADER_ENV); \
 		dd if=$$UBOOT_DIR/SPL of=$$UBOOT_DIR/u-boot.imx bs=1K seek=0 conv=notrunc; \
 		dd if=$$UBOOT_DIR/u-boot.img of=$$UBOOT_DIR/u-boot.imx bs=1K seek=68; \
 		install -D $$UBOOT_DIR/u-boot.imx $(PRODUCT_OUT)/u-boot-$$UBOOT_PLATFORM.imx; \
-	   else \
-		$(MAKE) -C bootable/bootloader/$(TARGET_UBOOT_VERSION)/ distclean $(BOOTLOADER_ENV); \
-		$(MAKE) -C bootable/bootloader/$(TARGET_UBOOT_VERSION)/ $$UBOOT_CONFIG $(BOOTLOADER_ENV); \
-		$(MAKE) -C bootable/bootloader/$(TARGET_UBOOT_VERSION)/ $(BOOTLOADER_ENV); \
-		install -D bootable/bootloader/$(TARGET_UBOOT_VERSION)/u-boot.imx $(PRODUCT_OUT)/u-boot-$$UBOOT_PLATFORM.imx; \
-		install -D bootable/bootloader/$(TARGET_UBOOT_VERSION)/u-boot.imx $@; \
-	   fi \
 	done
 else
 bootloader:
