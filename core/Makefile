@@ -924,7 +924,10 @@ endif
 .PHONY: bootloader
 ifneq ($(strip $(TARGET_BOOTLOADER_CONFIG)),)
 BOOTLOADER_CROSS_TOOLCHAIN := `pwd`/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin/arm-eabi-
+BOOTLOADER_OUT := `pwd`/$(PRODUCT_OUT)/obj/UBOOT_OBJ
 BOOTLOADER_ENV := ARCH=arm CROSS_COMPILE=$(BOOTLOADER_CROSS_TOOLCHAIN)
+BOOTLOADER_ENV += $(TARGET_BOOTLOADER_ENV) O=$(BOOTLOADER_OUT)
+
 HOST_PROCESSOR := $(shell cat /proc/cpuinfo | grep processor | wc -l)
 TARGET_BOOTLOADER_IMAGE := $(PRODUCT_OUT)/u-boot.imx
 
@@ -938,14 +941,14 @@ $(TARGET_BOOTLOADER_IMAGE):
 		UBOOT_PLATFORM=`echo $$ubootplat | cut -d':' -f1`; \
 		UBOOT_CONFIG=`echo $$ubootplat | cut -d':' -f2`; \
 		UBOOT_DIR="bootable/bootloader/$(TARGET_UBOOT_VERSION)"; \
-        echo $(UBOOT_PLATFORM); \
-        echo $(UBOOT_CONFIG); \
+        	echo $(UBOOT_PLATFORM); \
+        	echo $(UBOOT_CONFIG); \
+        	mkdir -p $(BOOTLOADER_OUT); \
 		$(MAKE) -C $$UBOOT_DIR distclean $(BOOTLOADER_ENV); \
 		$(MAKE) -C $$UBOOT_DIR $$UBOOT_CONFIG $(BOOTLOADER_ENV); \
 		$(MAKE) -C $$UBOOT_DIR $(BOOTLOADER_ENV); \
-		dd if=$$UBOOT_DIR/SPL of=$$UBOOT_DIR/u-boot.imx bs=1K seek=0 conv=notrunc; \
-		dd if=$$UBOOT_DIR/u-boot.img of=$$UBOOT_DIR/u-boot.imx bs=1K seek=68; \
-		install -D $$UBOOT_DIR/u-boot.imx $(PRODUCT_OUT)/u-boot-$$UBOOT_PLATFORM.imx; \
+		dd if=$(BOOTLOADER_OUT)/SPL of=$(PRODUCT_OUT)/u-boot.imx bs=1K seek=0 conv=notrunc; \
+		dd if=$(BOOTLOADER_OUT)/u-boot.img of=$(PRODUCT_OUT)/u-boot.imx bs=1K seek=68; \
 	done
 else
 bootloader:
@@ -973,8 +976,6 @@ $(TARGET_KERNEL_CONFIGURE): kernel_imx/arch/arm/configs/$(TARGET_KERNEL_DEFCONF)
 	mkdir -p $(KERNEL_OUT)
 	rm -f $(PRODUCT_OUT)/kernel
 	$(MAKE) -C kernel_imx $(TARGET_KERNEL_DEFCONF) $(KERNEL_ENV)
-	$(MAKE) -C kernel_imx -j$(HOST_PROCESSOR) prepare $(KERNEL_ENV)
-	#install -D $(KERNEL_CONFIGURE) $(TARGET_KERNEL_CONFIGURE)
 
 $(TARGET_PREBUILT_KERNEL): $(TARGET_KERNEL_CONFIGURE)
 	$(MAKE) -C kernel_imx -j$(HOST_PROCESSOR) uImage $(KERNEL_ENV)
@@ -1015,7 +1016,7 @@ kernelmodules: $(TARGET_PREBUILT_KERNEL) | $(ACP)
 	$(eval _full_dest := $(call append-path,$(PRODUCT_OUT),$(_dest)))	\
 	$(eval _dest_dir := $(call dir, $(_full_dest))) 			\
 	mkdir -p $(_dest_dir); 							\
-	$(ACP) $(PRODUCT_OUT)/obj/KERNEL_OBJ/$(_src) $(_full_dest);		\
+	$(ACP) $(KERNEL_OUT)/$(_src) $(_full_dest);				\
 	)
 	@echo "install kernel modules: $(kernel_modules_src_list)"
 else
