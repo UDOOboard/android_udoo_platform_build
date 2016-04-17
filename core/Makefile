@@ -949,7 +949,7 @@ $(TARGET_BOOTLOADER_IMAGE):
 		$(MAKE) -C $$UBOOT_DIR $(BOOTLOADER_ENV); \
 		dd if=$(BOOTLOADER_OUT)/SPL of=$(PRODUCT_OUT)/u-boot.imx bs=1K seek=0 conv=notrunc; \
 		dd if=$(BOOTLOADER_OUT)/u-boot.img of=$(PRODUCT_OUT)/u-boot.imx bs=1K seek=68; \
-		install -D $(PRODUCT_OUT)/u-boot.imx $(PRODUCT_OUT)/u-boot-$$UBOOT_PLATFORM.imx;
+		install -D $(PRODUCT_OUT)/u-boot.imx $(PRODUCT_OUT)/u-boot-$$UBOOT_PLATFORM.imx; \
 	done
 else
 bootloader:
