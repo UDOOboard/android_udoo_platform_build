@@ -10,7 +10,6 @@ VENDER_SIZE=8
 MISC_SIZE=8
 # SFDISK_UNIT="M"
 SFDISK_UNIT="S"
-platform=`echo $OUT | awk -F "/" '{print $NF}'`
 
 help() {
 
@@ -29,19 +28,54 @@ EOF
 
 }
 
+# check the if root?
+userid=`id -u`
+if [ $userid -ne "0" ]; then
+	echo "You're not root?"
+	exit
+fi
+
+# Choose right target dir
+target_dir_udoo="out/target/product/udoo_6dq"
+target_dir_a62="out/target/product/a62_6dq"
+target_dir_udooneo="out/target/product/udooneo_6sx"
+target_dir="./"
+
+for d in $target_dir_udoo $target_dir_a62 $target_dir_udooneo
+  do
+    if [ -e "$d/system.img" ]; then
+       if [ -e "${target_dir}/system.img" ]; then
+          if [ "${target_dir}/system.img" -ot "$d/system.img" ]; then
+              target_dir=$d
+          fi
+       else
+	    target_dir=$d
+       fi
+   fi
+done
+
+platform=`echo $target_dir | awk -F "/" '{print $NF}'`
+
+if [ ! -e "${target_dir}/boot.img" ]; then
+      echo ""
+      echo " --> Can't find valid images in target dir \"${target_dir}\". Exit."
+      echo ""
+      exit 1
+fi
+
 video=""
 if [[ $# -eq 2 ]]
  then
    soc="-$2"
    if [[ "x$2" == "ximx6dl" ]]
      then
-	endstring="imx6 DUALLITE Android 5.1.1 image created."
+	endstring="imx6 DUALLITE Android 6.0.1 image created."
    elif [[ "x$2" == "ximx6q" ]]
      then
-   	endstring="imx6 QUAD Android 5.1.1 image created."
+   	endstring="imx6 QUAD Android 6.0.1 image created."
    elif [[ "x$2" == "ximx6sx" ]]
      then
-   	endstring="imx6 SoloX Android 5.1.1 image created."
+   	endstring="imx6 SoloX Android 6.0.1 image created."
         if [[ $# -eq 3 ]]
          then
            if [[ "x$3" == "xlvds7" ]]
@@ -52,29 +86,17 @@ if [[ $# -eq 2 ]]
            fi
         fi
    else
-   	endstring="imx6 $2 Android 5.1.1 image created."
+   	endstring="imx6 $2 Android 6.0.1 image created."
    fi
  else
    if [[ "x$platform" == "xudooneo_6sx" ]]
      then
        soc="-imx6sx"
-       endstring="imx6 udooNeo Android 5.1.1 image created"
+       endstring="imx6 udooNeo Android 6.0.1 image created"
     else
        soc="-imx6q"
-       endstring="imx6 QUAD Android 5.1.1 image created"
+       endstring="imx6 QUAD Android 6.0.1 image created"
    fi
-fi
-
-# check the if root?
-userid=`id -u`
-if [ $userid -ne "0" ]; then
-	echo "You're not root?"
-	exit
-fi
-
-if [ -z "$OUT" ]; then
-    echo "No OUT export variable found! Setup not called in advance..."
-    exit 1
 fi
 
 # parse command line
@@ -174,7 +196,7 @@ function format_android
     sleep 0.5
     mkfs.ext4 -F ${part}6 -Lcache
     sleep 0.5
-    mkfs.ext4 -F ${part}7 -Lvender
+    mkfs.ext4 -F ${part}7 -Ldevice
     sleep 0.5
 }
 
@@ -182,15 +204,19 @@ function flash_android
 {
     if [ "${flash_images}" -eq "1" ]; then
 	echo "Flashing android images..."
-	dd if=$OUT/u-boot${soc}.imx of=${node} bs=1024 seek=1 conv=fsync
+	cd ${target_dir}
+	dd if=u-boot.imx of=${node} bs=1k seek=1 conv=fsync
 	dd if=/dev/zero of=${node} bs=512 seek=1536 count=16 conv=fsync
-	dd if=$OUT/boot${soc}${video}.img of=${part}1 bs=8192 conv=fsync
-	dd if=$OUT/recovery${soc}${video}.img of=${part}2 bs=8192 conv=fsync
-	simg2img $OUT/system.img $OUT/system_raw.img
-	dd if=$OUT/system_raw.img of=${part}5 bs=8192 conv=fsync
+	dd if=boot.img of=${part}1 bs=8k conv=fsync
+	dd if=recovery.img of=${part}2 bs=8k conv=fsync
+	if [ -e system.img ]; then
+	    [ system.img -ot system_raw.img ] && simg2img system.img system_raw.img
+	fi
+	dd if=system_raw.img of=${part}5 bs=16M conv=fsync
 	# Do this twice to be sure it will boot.
 	sync
-	dd if=$OUT/u-boot${soc}.imx of=${node} bs=1024 seek=1 conv=fsync
+	dd if=u-boot.imx of=${node} bs=1024 seek=1 conv=fsync
+	cd -
     fi
 }
 
@@ -251,7 +277,7 @@ echo "##                                                                        
 echo "## Going to format $node device. Everything on this device will be lost ## "
 echo "##                                                                         ## "
 echo "##  Android Distro will be grabbed from:                                   ## "
-echo "##   $OUT  ## "
+echo "##   $target_dir  ## "
 echo "##                                                                         ## "
 echo "############################################################################# "
 echo ""
