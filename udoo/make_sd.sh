@@ -150,7 +150,7 @@ if [ ${SFDISK_UNIT} == "S" ]
 	 then
 	   sector_size=`sfdisk -l ${node} | grep "sectors of" | awk '{print $(NF-1)}'`
 	else
-	   sector_size=`fdisk -l ${node} | grep "sectors of" | awk '{print $(NF-1)}'`
+	   sector_size=`fdisk -l ${node} | grep "sectors of" | sed -e 's/\(.*\)=\(.*\)bytes/\2/g' | sed -e 's/\ //g'`
 	fi
 
 	(( boot_rom_sizeb = ${boot_rom_sizeb} * 1024 * 1024 / ${sector_size} ))
@@ -209,6 +209,7 @@ function flash_android
 	dd if=/dev/zero of=${node} bs=512 seek=1536 count=16 conv=fsync
 	dd if=boot.img of=${part}1 bs=8k conv=fsync
 	dd if=recovery.img of=${part}2 bs=8k conv=fsync
+	[ ! -e system_raw.img ] && simg2img system.img system_raw.img
 	if [ -e system.img ]; then
 	    [ system.img -ot system_raw.img ] && simg2img system.img system_raw.img
 	fi
