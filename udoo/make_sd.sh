@@ -56,17 +56,10 @@ done
 
 platform=`echo $target_dir | awk -F "/" '{print $NF}'`
 
-if [ ! -e "${target_dir}/boot.img" ]; then
-      echo ""
-      echo " --> Can't find valid images in target dir \"${target_dir}\". Exit."
-      echo ""
-      exit 1
-fi
-
 video=""
 if [[ $# -eq 2 ]]
  then
-   soc="-$2"
+   [ `echo ${target_dir} | grep -c a62` -gt 0 ] && soc="-$2"
    if [[ "x$2" == "ximx6dl" ]]
      then
 	endstring="imx6 DUALLITE Android 6.0.1 image created."
@@ -91,12 +84,19 @@ if [[ $# -eq 2 ]]
  else
    if [[ "x$platform" == "xudooneo_6sx" ]]
      then
-       soc="-imx6sx"
+       # soc="-imx6sx"
        endstring="imx6 udooNeo Android 6.0.1 image created"
     else
        soc="-imx6q"
-       endstring="imx6 QUAD Android 6.0.1 image created"
+       # endstring="imx6 QUAD Android 6.0.1 image created"
    fi
+fi
+
+if [ ! -e "${target_dir}/boot${soc}.img" ]; then
+      echo ""
+      echo " --> Can't find valid images (boot${soc}.img) in target dir \"${target_dir}\". Exit."
+      echo ""
+      exit 1
 fi
 
 # parse command line
@@ -205,10 +205,10 @@ function flash_android
     if [ "${flash_images}" -eq "1" ]; then
 	echo "Flashing android images..."
 	cd ${target_dir}
-	dd if=u-boot.imx of=${node} bs=1k seek=1 conv=fsync
+	dd if=u-boot${soc}.imx of=${node} bs=1k seek=1 conv=fsync
 	dd if=/dev/zero of=${node} bs=512 seek=1536 count=16 conv=fsync
-	dd if=boot.img of=${part}1 bs=8k conv=fsync
-	dd if=recovery.img of=${part}2 bs=8k conv=fsync
+	dd if=boot${soc}.img of=${part}1 bs=8k conv=fsync
+	dd if=recovery${soc}.img of=${part}2 bs=8k conv=fsync
 	[ ! -e system_raw.img ] && simg2img system.img system_raw.img
 	if [ -e system.img ]; then
 	    [ system.img -ot system_raw.img ] && simg2img system.img system_raw.img
@@ -216,7 +216,7 @@ function flash_android
 	dd if=system_raw.img of=${part}5 bs=16M conv=fsync
 	# Do this twice to be sure it will boot.
 	sync
-	dd if=u-boot.imx of=${node} bs=1024 seek=1 conv=fsync
+	dd if=u-boot${soc}.imx of=${node} bs=1024 seek=1 conv=fsync
 	cd -
     fi
 }
