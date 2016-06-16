@@ -6,5 +6,5 @@ From a Linux PC (or a Linux virtual machine):
 	$ sudo lsblk
 
     - Run make_sd script to flashes the android images on uSD card:
-	$ sudo ./make_sd.sh /dev/sdX [ or /dev/mmcblkX ]
+	$ sudo -E ./make_sd.sh /dev/sdX [ or /dev/mmcblkX ]
 

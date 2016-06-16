@@ -27,4 +27,4 @@ Run following commands from THIS directory:
    $ ./prepare_distro.sh 
 
 - write image on uSD following instruction in "README_make_uSD.txt" file:
-   $ sudo ./make_sd.sh /dev/sdX [ or /dev/mmcblkX ]
+   $ sudo -E ./make_sd.sh /dev/sdX [ or /dev/mmcblkX ]
