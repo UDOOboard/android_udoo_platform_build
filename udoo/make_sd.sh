@@ -175,13 +175,13 @@ function flash_android
 	dd if=recovery.img of=${part}2 bs=8k conv=fsync
 	[ ! -e system_raw.img ] && simg2img system.img system_raw.img
 	if [ -e system.img ]; then
-	    [ system.img -ot system_raw.img ] && simg2img system.img system_raw.img
+	    [ system.img -nt system_raw.img ] && simg2img system.img system_raw.img
 	fi
 	dd if=system_raw.img of=${part}5 bs=16M conv=fsync
 	# Do this twice to be sure it will boot.
 	sync
 	dd if=u-boot.imx of=${node} bs=1024 seek=1 conv=fsync
-	cd -
+	cd -  > /dev/null 
     fi
 }
 
