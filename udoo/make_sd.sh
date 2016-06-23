@@ -110,6 +110,9 @@ echo "Trying to unmount partitions"
 umount ${part}* > /dev/null 2> /dev/null
 sleep 1
 
+# change the language to en_US for sfdisk
+LANG=en_US
+
 # call sfdisk to create partition table
 # get total card size
 seprate=40
