@@ -33,7 +33,12 @@ endif
 
 # start of image reserved address space
 LIBART_IMG_HOST_BASE_ADDRESS   := 0x60000000
+# maybe it exists a better solutions ..
+ifeq ($(PRODUCT_MODEL), UDOONEO-MX6SX)
+LIBART_IMG_TARGET_BASE_ADDRESS := 0x30000000
+else
 LIBART_IMG_TARGET_BASE_ADDRESS := 0x70000000
+endif
 
 define get-product-default-property
 $(strip $(patsubst $(1)=%,%,$(filter $(1)=%,$(PRODUCT_DEFAULT_PROPERTY_OVERRIDES))))
