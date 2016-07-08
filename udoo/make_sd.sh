@@ -183,6 +183,8 @@ function flash_android
 	dd if=system_raw.img of=${part}5 bs=16M conv=fsync
 	# Do this twice to be sure it will boot.
 	sync
+	fsck.ext4 -y -f ${part}5
+	resize2fs ${part}5
 	dd if=u-boot.imx of=${node} bs=1024 seek=1 conv=fsync
 	cd -  > /dev/null 
     fi
