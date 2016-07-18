@@ -34,11 +34,7 @@ endif
 # start of image reserved address space
 LIBART_IMG_HOST_BASE_ADDRESS   := 0x60000000
 # maybe it exists a better solutions ..
-ifeq ($(PRODUCT_MODEL), UDOONEO-MX6SX)
-LIBART_IMG_TARGET_BASE_ADDRESS := 0x30000000
-else
 LIBART_IMG_TARGET_BASE_ADDRESS := 0x70000000
-endif
 
 define get-product-default-property
 $(strip $(patsubst $(1)=%,%,$(filter $(1)=%,$(PRODUCT_DEFAULT_PROPERTY_OVERRIDES))))
@@ -58,6 +54,11 @@ ifeq ($(TARGET_ARCH),$(filter $(TARGET_ARCH),mips mips64))
 # MIPS device.
 LIBART_IMG_TARGET_BASE_ADDRESS := 0x30000000
 DEX2OAT_XMX := 128m
+endif
+
+ifeq ($(PRODUCT_MODEL), UDOONEO-MX6SX)
+LIBART_IMG_TARGET_BASE_ADDRESS := 0x30000000
+DEX2OAT_XMX := 394m
 endif
 
 ########################################################################
