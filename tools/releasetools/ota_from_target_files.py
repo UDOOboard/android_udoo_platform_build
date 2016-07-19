@@ -1005,7 +1005,7 @@ else
       print "boot image unchanged; skipping."
 
   # Do device-specific installation (eg, write radio image).
-  device_specific.IncrementalOTA_InstallEnd()
+  device_specific.IncrementalOTA_InstallEnd_Ext4()
 
   if OPTIONS.extra_script is not None:
     script.AppendExtra(OPTIONS.extra_script)
@@ -1503,7 +1503,7 @@ else
   script.AppendScript(temp_script)
 
   # Do device-specific installation (eg, write radio image).
-  device_specific.IncrementalOTA_InstallEnd()
+  device_specific.IncrementalOTA_InstallEnd_Ubifs()
 
   if OPTIONS.extra_script is not None:
     script.AppendExtra(OPTIONS.extra_script)
