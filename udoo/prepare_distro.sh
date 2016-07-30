@@ -71,3 +71,4 @@ cp -v README_make_uSD.txt ${NAME}
 cp -v README_compile_Android.txt ${NAME}
 
 tar czvf $NAME.tar.gz $NAME
+rm -rf $NAME
