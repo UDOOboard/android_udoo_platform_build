@@ -49,6 +49,10 @@ LIBART_IMG_TARGET_BASE_ADDRESS := 0x30000000
 DEX2OAT_XMX := 128m
 endif
 
+ifeq ($(PRODUCT_MODEL), UDOONEO-MX6SX)
+DEX2OAT_XMX := 394m
+endif
+
 ########################################################################
 # The full system boot classpath
 
