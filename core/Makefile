@@ -1158,7 +1158,7 @@ $(TARGET_KERNEL_CONFIGURE): kernel_imx/arch/$(TARGET_ARCH)/configs/$(TARGET_KERN
 
 $(TARGET_PREBUILT_KERNEL): $(TARGET_KERNEL_CONFIGURE)
 	$(MAKE) -C kernel_imx zImage -j$(HOST_PROCESSOR) $(KERNEL_ENV)
-	$(MAKE) -C kernel_imx imx6{q,dl}-udoo{-lvds7,-lvds15,-hdmi}.dtb $(KERNEL_ENV)
+	$(MAKE) -C kernel_imx $(TARGET_BOARD_DTS_FILES) $(KERNEL_ENV)
 	install -D $(KERNEL_ZIMAGE)  $(PRODUCT_OUT)/kernel
 	for dtsplat in $(TARGET_BOARD_DTS_CONFIG); do \
 		DTS_PLATFORM=`echo $$dtsplat | cut -d':' -f1`; \
@@ -1189,7 +1189,6 @@ kernelmodules: $(TARGET_PREBUILT_KERNEL) | $(ACP)
 	$(eval _dest := $(call word-colon,2,$(cf)))				\
 	$(eval _full_dest := $(call append-path,$(PRODUCT_OUT),$(_dest)))	\
 	$(eval _dest_dir := $(call dir, $(_full_dest))) 			\
-	mkdir -p $(_dest_dir); 							\
 	mkdir -p `dirname $(_full_dest)`; 							\
 	$(ACP) $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/$(_src) $(_full_dest);				\
 	)
