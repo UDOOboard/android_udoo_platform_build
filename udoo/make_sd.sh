@@ -157,13 +157,13 @@ fi
 function format_android
 {
     echo "Formatting partitions..."
-    mkfs.ext4 -F ${part}4 -Ldata
+    mkfs.ext4 -O ^metadata_csum -F ${part}4 -Ldata
     sleep 0.5
-    mkfs.ext4 -F ${part}5 -Lsystem
+    mkfs.ext4 -O ^metadata_csum -F ${part}5 -Lsystem
     sleep 0.5
-    mkfs.ext4 -F ${part}6 -Lcache
+    mkfs.ext4 -O ^metadata_csum -F ${part}6 -Lcache
     sleep 0.5
-    mkfs.ext4 -F ${part}7 -Ldevice
+    mkfs.ext4 -O ^metadata_csum -F ${part}7 -Ldevice
     sleep 0.5
 }
 
