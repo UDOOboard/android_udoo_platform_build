@@ -157,13 +157,20 @@ fi
 function format_android
 {
     echo "Formatting partitions..."
-    mkfs.ext4 -O ^metadata_csum -F ${part}4 -Ldata
+    metadata_opt=" -O ^metadata_csum"
+    mkfs.ext4 ${metadata_opt} -F ${part}7 -Ldevice > /dev/null 2>&1
+    if [ $? -ne 0 ]
+      then
+        metadata_opt=" "
+    fi
+    
+    mkfs.ext4 ${metadata_opt} -F ${part}4 -Ldata
     sleep 0.5
-    mkfs.ext4 -O ^metadata_csum -F ${part}5 -Lsystem
+    mkfs.ext4 ${metadata_opt} -F ${part}5 -Lsystem
     sleep 0.5
-    mkfs.ext4 -O ^metadata_csum -F ${part}6 -Lcache
+    mkfs.ext4 ${metadata_opt} -F ${part}6 -Lcache
     sleep 0.5
-    mkfs.ext4 -O ^metadata_csum -F ${part}7 -Ldevice
+    mkfs.ext4 ${metadata_opt} -F ${part}7 -Ldevice
     sleep 0.5
 }
 
@@ -173,6 +180,7 @@ function flash_android
 	echo "Flashing android images..."
 	cd ${target_dir}
 	dd if=u-boot.imx of=${node} bs=1k seek=1 conv=fsync
+	dd if=/dev/zero of=${node} bs=1k  seek=512  count=1
 	dd if=/dev/zero of=${node} bs=512 seek=1536 count=16 conv=fsync
 	dd if=boot.img of=${part}1 bs=8k conv=fsync
 	dd if=recovery.img of=${part}2 bs=8k conv=fsync
