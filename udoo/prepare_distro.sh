@@ -62,6 +62,8 @@ rm -rf $NAME
 rm -rf $NAME.tar.gz
 mkdir $NAME
 
+cp -v $target_dir/u-boot-imx6qdl_2Giga.imx $NAME
+cp -v $target_dir/u-boot-imx6qdl_1Giga.imx $NAME
 cp -v $target_dir/u-boot.imx $NAME
 cp -v $target_dir/boot.img $NAME
 cp -v $target_dir/recovery.img $NAME

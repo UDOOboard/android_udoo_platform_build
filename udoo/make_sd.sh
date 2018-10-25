@@ -179,9 +179,9 @@ function flash_android
     if [ "${flash_images}" -eq "1" ]; then
 	echo "Flashing android images..."
 	cd ${target_dir}
-	dd if=u-boot.imx of=${node} bs=1k seek=1 conv=fsync
 	dd if=/dev/zero of=${node} bs=1k  seek=512  count=1
 	dd if=/dev/zero of=${node} bs=512 seek=1536 count=16 conv=fsync
+	dd if=u-boot.imx of=${node} bs=1k seek=1 conv=fsync
 	dd if=boot.img of=${part}1 bs=8k conv=fsync
 	dd if=recovery.img of=${part}2 bs=8k conv=fsync
 	[ ! -e system_raw.img ] && simg2img system.img system_raw.img
